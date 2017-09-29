@@ -10,7 +10,7 @@ namespace Ultimoid {
             byte[] data = Encoding.Default.GetBytes("he");
             client.Send(data, data.Length, "localhost", 8989);
             Console.WriteLine("sent");
-
+            
             using (var game = new Game1()) {
                 game.Run();
             }

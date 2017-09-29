@@ -33,7 +33,7 @@ namespace HexMage.Simulator {
         public int Distance(AxialCoord to) {
             return (Math.Abs(X - to.X)
                     + Math.Abs(X + Y - to.X - to.Y)
-                    + Math.Abs(Y - to.Y))/2;
+                    + Math.Abs(Y - to.Y)) / 2;
         }
 
         public static AxialCoord operator +(AxialCoord a, AxialCoord b) {
@@ -45,7 +45,7 @@ namespace HexMage.Simulator {
         }
 
         public static AxialCoord operator *(AxialCoord a, int x) {
-            return new AxialCoord(a.X*x, a.Y*x);
+            return new AxialCoord(a.X * x, a.Y * x);
         }
 
         public CubeCoord ToCube() {
@@ -71,10 +71,10 @@ namespace HexMage.Simulator {
         public override string ToString() {
             return $"[{X},{Y}]";
         }
-        
+
         public override int GetHashCode() {
             unchecked {
-                return (X*397) ^ Y;
+                return (X * 397) ^ Y;
             }
         }
     }

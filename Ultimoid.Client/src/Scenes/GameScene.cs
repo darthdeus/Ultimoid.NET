@@ -137,6 +137,11 @@ namespace HexMage.GUI.Scenes {
             entity.Scene = this;
         }
 
+        public void AddAndInitializeRootEntity(Entity entity) {
+            AddAndInitializeRootEntity(entity, _assetManager);
+        }
+
+        [Obsolete]
         public void AddAndInitializeRootEntity(Entity entity, AssetManager assetManager) {
             AddRootEntity(entity);
             entity.InitializeEntity(assetManager);

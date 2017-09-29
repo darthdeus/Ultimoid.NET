@@ -1,8 +1,16 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using HexMage.GUI;
+using HexMage.GUI.Core;
+using HexMage.GUI.Scenes;
+using HexMage.Simulator;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Ultimoid.Lib;
+using Color = Microsoft.Xna.Framework.Color;
 
-namespace Ultimoid {
+namespace Ultimoid
+{
     /// <summary>
     /// This is the main type for your game.
     /// </summary>
@@ -10,9 +18,32 @@ namespace Ultimoid {
         GraphicsDeviceManager _graphics;
         SpriteBatch _spriteBatch;
 
+        private InputManager _inputManager = InputManager.Instance;
+        private AssetManager _assetManager;
+        private Camera2D _camera;
+        private GameManager _gameManager;
+        private SceneManager _sceneManager;
+        private Scheduler _scheduler;
+
         public Game1() {
-            _graphics = new GraphicsDeviceManager(this);
+            _graphics = new GraphicsDeviceManager(this) {
+                PreferredBackBufferWidth = 1280,
+                PreferredBackBufferHeight = 1024
+            };
+
+            _assetManager = new AssetManager(Content, _graphics.GraphicsDevice);
+            _camera = new Camera2D(_inputManager);
+
             Content.RootDirectory = "Content";
+
+            _scheduler = new Scheduler();
+
+            void TikTok() {
+                Console.WriteLine("Tick");
+                _scheduler.RunIn(TimeSpan.FromSeconds(1), TikTok);
+            }
+
+            _scheduler.RunIn(TimeSpan.FromSeconds(1), TikTok);
         }
 
         /// <summary>
@@ -22,55 +53,52 @@ namespace Ultimoid {
         /// and initialize them as well.
         /// </summary>
         protected override void Initialize() {
-            // TODO: Add your initialization logic here
+            IsMouseVisible = true;
+            _inputManager.Initialize(this);
+
             base.Initialize();
         }
 
         protected override void LoadContent() {
-            // Create a new SpriteBatch, which can be used to draw textures.
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // TODO: use this.Content to load your game content here
+            _assetManager.Preload();
+            _assetManager.RegisterTexture(AssetManager.SolidGrayColor,
+                TextureGenerator.SolidColor(GraphicsDevice, 32, 32, Color.LightGray));
+
+            Utils.InitializeLoggerMainThread();
+            Utils.RegisterLogger(new StdoutLogger());
+
+            _gameManager = new GameManager(_camera, _inputManager, _assetManager, _spriteBatch);
+            _sceneManager = new SceneManager(new MainGameplayScene(_gameManager));
+            _sceneManager.Initialize();
         }
 
-        /// <summary>
-        /// UnloadContent will be called once per game and is the place to unload
-        /// game-specific content.
-        /// </summary>
         protected override void UnloadContent() {
-            // TODO: Unload any non ContentManager content here
         }
 
-        /// <summary>
-        /// Allows the game to run logic such as updating the world,
-        /// checking for collisions, gathering input, and playing audio.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime) {
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
                 Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            // TODO: Add your update logic here
+            if (_inputManager.IsKeyJustPressed(Keys.Escape)) {
+                Exit();
+            }
+
+            // TODO: introduce custom time scale
+            _camera.Update(gameTime);
+            _sceneManager.Update(gameTime);
+            
+            _scheduler.Update(gameTime.ElapsedGameTime);
 
             base.Update(gameTime);
         }
 
-        /// <summary>
-        /// This is called when the game should draw itself.
-        /// </summary>
-        /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Draw(GameTime gameTime) {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // TODO: Add your drawing code here
-
-            var grid = Content.Load<Texture2D>("grid");
-
-            _spriteBatch.Begin();
-            _spriteBatch.Draw(grid, Vector2.Zero, Color.White);
-            _spriteBatch.End();
-
+            _sceneManager.Render(gameTime);
 
             base.Draw(gameTime);
         }

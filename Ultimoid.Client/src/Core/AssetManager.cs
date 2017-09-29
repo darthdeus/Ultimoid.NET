@@ -168,13 +168,14 @@ namespace HexMage.GUI.Core {
         }
 
         public void Preload() {
-            _font = _contentManager.Load<SpriteFont>(FontName);
-            _abilityFont = _contentManager.Load<SpriteFont>(FontAbility);
-            _abilityFontSmall = _contentManager.Load<SpriteFont>(FontAbilitySmall);
+            // TODO: figure out what needs to be preloaded
+            //_font = _contentManager.Load<SpriteFont>(FontName);
+            //_abilityFont = _contentManager.Load<SpriteFont>(FontAbility);
+            //_abilityFontSmall = _contentManager.Load<SpriteFont>(FontAbilitySmall);
 
-            foreach (var texture in new[] {HexWallSprite, HexPathSprite, HexEmptySprite}) {
-                _textures[texture] = _contentManager.Load<Texture2D>(texture);
-            }
+            //foreach (var texture in new[] {HexWallSprite, HexPathSprite, HexEmptySprite}) {
+            //    _textures[texture] = _contentManager.Load<Texture2D>(texture);
+            //}
         }
 
         public void RegisterTexture(string name, Texture2D texture2D) {
