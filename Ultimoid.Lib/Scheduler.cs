@@ -126,10 +126,19 @@ namespace Ultimoid.Lib {
             // ************************************************************
             _tasks = newTasks;
 
+            var exceptions = new List<Exception>();
+
             // TODO: carry over the initial state
             foreach (var action in toExecute) {
-                action();
+                try {
+                    action();
+                } catch (Exception e) {
+                    exceptions.Add(e);
+                    Console.Error.WriteLine(e);
+                }
             }
+
+            // TODO: log exceptions properly
         }
     }
 }

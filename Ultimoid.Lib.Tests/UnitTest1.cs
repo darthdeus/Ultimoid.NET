@@ -49,8 +49,11 @@ namespace Ultimoid.Lib.Tests {
 
             // Limited period
             int runCounts = 0;
-            sched.RunPeriodicallyLimited(TimeSpan.FromMilliseconds(3),
-                TimeSpan.FromMilliseconds(10), 2, () => runCounts++);
+            sched.RunPeriodicallyLimited(
+                TimeSpan.FromMilliseconds(3),
+                TimeSpan.FromMilliseconds(10),
+                2,
+                () => runCounts++);
 
             sched.Update(TimeSpan.FromMilliseconds(2));
             Assert.AreEqual(0, runCounts);
@@ -70,8 +73,10 @@ namespace Ultimoid.Lib.Tests {
 
             // Unlimited period
             int unlimitedRunCounts = 0;
-            sched.RunPeriodically(TimeSpan.FromMilliseconds(5),
-                TimeSpan.FromMilliseconds(10), () => unlimitedRunCounts++);
+            sched.RunPeriodically(
+                TimeSpan.FromMilliseconds(5),
+                TimeSpan.FromMilliseconds(10),
+                () => unlimitedRunCounts++);
 
             // TODO: vyjimky u action
 
@@ -94,6 +99,8 @@ namespace Ultimoid.Lib.Tests {
             sched.Update(TimeSpan.FromMilliseconds(10));
             Assert.AreEqual(3, unlimitedRunCounts);
 
+            sched.Update(TimeSpan.FromDays(365));
+            Assert.AreEqual(4, unlimitedRunCounts);
         }
     }
 }
