@@ -102,5 +102,38 @@ namespace Ultimoid.Lib.Tests {
             sched.Update(TimeSpan.FromDays(365));
             Assert.AreEqual(4, unlimitedRunCounts);
         }
+
+        [TestMethod]
+        public void CancelledTaskTest() {
+            var sched = new Scheduler();
+
+            bool ran = false;
+            var tcs = sched.RunIn(TimeSpan.FromMilliseconds(10), () => ran = true);
+
+            sched.Update(TimeSpan.FromMilliseconds(5));
+            Assert.IsFalse(ran);
+
+            tcs.Cancel();
+            sched.Update(TimeSpan.FromMilliseconds(10));
+            Assert.IsFalse(ran);
+        }
+
+        [TestMethod]
+        public void CancelledPeriodicTaskTest() {
+            var sched = new Scheduler();
+
+            int count = 0;
+            var tcs = sched.RunPeriodically(TimeSpan.FromMilliseconds(5), () => count++);
+
+            sched.Update(TimeSpan.FromMilliseconds(10));
+            Assert.AreEqual(1, count);
+            sched.Update(TimeSpan.FromMilliseconds(10));
+            Assert.AreEqual(2, count);
+
+            tcs.Cancel();
+
+            sched.Update(TimeSpan.FromMilliseconds(10));
+            Assert.AreEqual(2, count);
+        }
     }
 }

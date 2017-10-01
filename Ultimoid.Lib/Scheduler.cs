@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Xml;
 
 namespace Ultimoid.Lib {
     public class Scheduler {
+        [DebuggerDisplay("{DebuggerDisplay,nq}")]
         public struct SchedulerTask {
             public enum TaskType {
                 OneShot,
@@ -12,14 +14,17 @@ namespace Ultimoid.Lib {
                 PeriodicForever
             }
 
+            public CancellationToken CancellationToken;
             public TimeSpan Delay;
             public TimeSpan Period;
             public Action Action;
             public TaskType Type;
             public int IterationsRemaining;
 
-            private SchedulerTask(TimeSpan delay, TimeSpan period, Action action, TaskType type,
+            private SchedulerTask(CancellationToken token, TimeSpan delay, TimeSpan period, Action action,
+                TaskType type,
                 int iterationsRemaining) {
+                CancellationToken = token;
                 Delay = delay;
                 Period = period;
                 Action = action;
@@ -33,50 +38,60 @@ namespace Ultimoid.Lib {
             }
 
             public SchedulerTask WithChangedDelay(TimeSpan delay) {
-                return new SchedulerTask(delay, Period, Action, Type, IterationsRemaining);
+                return new SchedulerTask(CancellationToken, delay, Period, Action, Type, IterationsRemaining);
             }
 
             public SchedulerTask WithChangedDelayAndIterations(TimeSpan delay, int iterations) {
-                return new SchedulerTask(delay, Period, Action, Type, iterations);
+                return new SchedulerTask(CancellationToken, delay, Period, Action, Type, iterations);
             }
 
-            public static SchedulerTask OneShotTask(TimeSpan delay, Action action) {
-                return new SchedulerTask(delay, TimeSpan.Zero, action, TaskType.OneShot, 1);
+            public static SchedulerTask OneShotTask(CancellationToken token, TimeSpan delay, Action action) {
+                return new SchedulerTask(token, delay, TimeSpan.Zero, action, TaskType.OneShot, 1);
             }
 
-            public static SchedulerTask PeriodicLimitedTask(TimeSpan delay, TimeSpan period, int iterations,
+            public static SchedulerTask PeriodicLimitedTask(CancellationToken token, TimeSpan delay, TimeSpan period, int iterations,
                 Action action) {
-                return new SchedulerTask(delay, period, action, TaskType.PeriodicLimited, iterations);
+                return new SchedulerTask(token, delay, period, action, TaskType.PeriodicLimited, iterations);
             }
 
-            public static SchedulerTask PeriodicForeverTask(TimeSpan delay, TimeSpan period, Action action) {
-                return new SchedulerTask(delay, period, action, TaskType.PeriodicForever, -1);
+            public static SchedulerTask PeriodicForeverTask(CancellationToken token, TimeSpan delay, TimeSpan period, Action action) {
+                return new SchedulerTask(token, delay, period, action, TaskType.PeriodicForever, -1);
             }
+
+            private string DebuggerDisplay => $"SchedulerTask: {Type}, {Delay}";
         }
 
         private List<SchedulerTask> _tasks = new List<SchedulerTask>();
         private TimeSpan _elapsedTime = TimeSpan.Zero;
 
-        public void RunIn(TimeSpan delay, Action action) {
+        public CancellationTokenSource RunIn(TimeSpan delay, Action action) {
             // TODO: possibly record a stacktrace here together with the task,
             //       so that it can be used later when diagnosing a failed run task
-            _tasks.Add(SchedulerTask.OneShotTask(delay, action));
+
+            var cts = new CancellationTokenSource();
+            _tasks.Add(SchedulerTask.OneShotTask(cts.Token, delay, action));
+
+            return cts;
         }
 
-        public void RunPeriodically(TimeSpan period, Action action) {
-            RunPeriodically(TimeSpan.Zero, period, action);
+        public CancellationTokenSource RunPeriodically(TimeSpan period, Action action) {
+            return RunPeriodically(TimeSpan.Zero, period, action);
         }
 
-        public void RunPeriodically(TimeSpan delay, TimeSpan period, Action action) {
-            _tasks.Add(SchedulerTask.PeriodicForeverTask(delay, period, action));
+        public CancellationTokenSource RunPeriodically(TimeSpan delay, TimeSpan period, Action action) {
+            var cts = new CancellationTokenSource();
+            _tasks.Add(SchedulerTask.PeriodicForeverTask(cts.Token, delay, period, action));
+            return cts;
         }
 
-        public void RunPeriodicallyLimited(TimeSpan period, int iterations, Action action) {
-            RunPeriodicallyLimited(TimeSpan.Zero, period, iterations, action);
+        public CancellationTokenSource RunPeriodicallyLimited(TimeSpan period, int iterations, Action action) {
+            return RunPeriodicallyLimited(TimeSpan.Zero, period, iterations, action);
         }
 
-        public void RunPeriodicallyLimited(TimeSpan delay, TimeSpan period, int iterations, Action action) {
-            _tasks.Add(SchedulerTask.PeriodicLimitedTask(delay, period, iterations, action));
+        public CancellationTokenSource RunPeriodicallyLimited(TimeSpan delay, TimeSpan period, int iterations, Action action) {
+            var cts = new CancellationTokenSource();
+            _tasks.Add(SchedulerTask.PeriodicLimitedTask(cts.Token, delay, period, iterations, action));
+            return cts;
         }
 
         public void Update(TimeSpan deltaTime) {
@@ -86,6 +101,11 @@ namespace Ultimoid.Lib {
             var toExecute = new List<Action>();
 
             foreach (var task in _tasks) {
+                if (task.CancellationToken.IsCancellationRequested) {
+                    // If the token was canelled, we throw away the task and avoid executing the callback.
+                    continue;
+                }
+
                 TimeSpan newTime = task.Delay.Subtract(deltaTime);
 
                 bool shouldExecute = newTime.TotalMilliseconds <= 0;
@@ -129,7 +149,7 @@ namespace Ultimoid.Lib {
             var exceptions = new List<Exception>();
 
             // TODO: carry over the initial state
-            foreach (var action in toExecute) {
+            foreach (var action in toExecute) {                
                 try {
                     action();
                 } catch (Exception e) {
