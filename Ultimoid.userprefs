@@ -1,0 +1,17 @@
+﻿<Properties StartupConfiguration="{D467837C-5687-4513-913E-A01D8E7A415A}|Default">
+  <MonoDevelop.Ide.Workbench ActiveDocument="Ultimoid.Server/Program.cs">
+    <Files>
+      <File FileName="Ultimoid.Lib/Scheduler.cs" Line="1" Column="1" />
+      <File FileName="Ultimoid.Lib/Protocol.cs" Line="49" Column="3" />
+      <File FileName="Ultimoid.Server/Program.cs" Line="20" Column="21" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.ItemProperties.Ultimoid.Server PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.ItemProperties.Ultimoid.Client PreferredExecutionTarget="MonoDevelop.Default" />
+  <MultiItemStartupConfigurations />
+</Properties>
