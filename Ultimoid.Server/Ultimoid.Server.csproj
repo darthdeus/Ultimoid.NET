@@ -48,5 +48,11 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ultimoid.Lib\Ultimoid.Lib.csproj">
+      <Project>{e5f1eba5-514b-4e8f-8e6a-0603a9576326}</Project>
+      <Name>Ultimoid.Lib</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

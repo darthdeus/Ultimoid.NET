@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Runtime.Remoting.Channels;
 using System.Text;
 using System.Threading.Tasks;
+using Ultimoid.Lib;
 
 namespace Ultimoid.Server {
 	class Program {
@@ -25,16 +26,22 @@ namespace Ultimoid.Server {
 
 		static void Main(string[] args) {
 			RunServerLoop(7999);
+		    
 
-			//var client = new UdpClient(new IPEndPoint(IPAddress.Any, 8989));
+            var sched = new Scheduler();
 
-			//while (true) {
-			//    IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+            var network = new NetworkManager(sched);
 
-			//    var data = client.Receive(ref sender);
-			//    Console.WriteLine("Received:");
-			//    Console.WriteLine(Encoding.ASCII.GetString(data));
-			//}
+
+		    //var client = new UdpClient(new IPEndPoint(IPAddress.Any, 8989));
+
+		    //while (true) {
+		    //    IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+
+		    //    var data = client.Receive(ref sender);
+		    //    Console.WriteLine("Received:");
+		    //    Console.WriteLine(Encoding.ASCII.GetString(data));
+		    //}
 		}
 	}
 }

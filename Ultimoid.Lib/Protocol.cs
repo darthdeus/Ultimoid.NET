@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Collections.Generic;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace Ultimoid.Lib {
 	public struct Datagram {
@@ -14,11 +16,25 @@ namespace Ultimoid.Lib {
 		public byte[] Payload;
 	}
 
+    public struct UdpPair {
+        public IPEndPoint Endpoint;
+        public Datagram Datagram;
+
+        public UdpPair(IPEndPoint endpoint, Datagram datagram) {
+            Endpoint = endpoint;
+            Datagram = datagram;
+        }
+    }
+
 	public class NetworkManager {
 		const int ListenPort = 9987;
 
 		private Scheduler _scheduler;
 		private Dictionary<ulong, CancellationToken> _pending = new Dictionary<ulong, CancellationToken>();
+
+        private ConcurrentQueue<UdpPair> _receivedQueue = new ConcurrentQueue<UdpPair>();
+        private ConcurrentQueue<UdpPair> _sendQueue = new ConcurrentQueue<UdpPair>();
+
 		private UdpClient _udp;
 
 		public NetworkManager(Scheduler scheduler) {
@@ -28,9 +44,56 @@ namespace Ultimoid.Lib {
 			_udp = new UdpClient(ListenPort);
 		}
 
-		public void ReliableSend(Datagram datagram) {
+	    public CancellationTokenSource StartWorkerThread() {
+            var cts = new CancellationTokenSource();
+
+            var resetEvent = new ManualResetEvent(false);
+
+            new Thread(() => {
+                CancellationToken token = cts.Token;
+
+                var udpSenderClient = new UdpClient();
+
+                while (!token.IsCancellationRequested) {
+                    UdpPair sendRequest;
+
+                    if (_sendQueue.TryDequeue(out sendRequest)) {
+                        udpSenderClient.Connect(sendRequest.Endpoint);
+
+                        byte[] data = Protocol.Serialize(sendRequest.Datagram);
+                        udpSenderClient.Send(data, data.Length);
+
+                        if (_sendQueue.IsEmpty) {
+                            resetEvent.Reset();
+                        }
+                    } else {
+                        Thread.Sleep(TimeSpan.FromMilliseconds(5));
+                        //resetEvent.
+                        //resetEvent.WaitOne(TimeSpan.FromMilliseconds(10));
+                    }
+                }
+            }).Start();
+
+            new Thread(() => {
+                CancellationToken token = cts.Token;
+
+
+                while (!token.IsCancellationRequested) {
+                    IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
+                    byte[] payload = _udp.Receive(ref remote);
+
+                    Datagram datagram = Protocol.Deserialize(payload);
+
+                    _receivedQueue.Enqueue(new UdpPair(remote, datagram));
+                }
+            }).Start();
+
+	        return cts;
+	    }
+
+		public void ReliableSend(IPEndPoint endpoint, Datagram datagram) {
 			// TODO: vymyslet generovani seq
-			DoSend(datagram);
+			DoSend(endpoint, datagram);
 
 			// TODO: compute based on initial handshake?
 			TimeSpan retryPeriod = TimeSpan.FromMilliseconds(200);
@@ -38,15 +101,13 @@ namespace Ultimoid.Lib {
 
 			var tcs = _scheduler.RunPeriodicallyLimited(retryPeriod, retryCount, () => {
 				// TODO: compute seq
-				DoSend(datagram);
+				DoSend(endpoint, datagram);
 			});
 		}
 
-		private void DoSend(Datagram datagram) {
+		private void DoSend(IPEndPoint endpoint, Datagram datagram) {
 			// TODO: samotne odeslani datagramu
 		}
-
-
 
 		public void Update(TimeSpan deltaTime) {
 			IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
@@ -56,6 +117,10 @@ namespace Ultimoid.Lib {
 
 
 		}
+
+	    public bool TryReceive(out Datagram datagram) {
+	        
+	    }
 	}
 
 	public static class Protocol {
