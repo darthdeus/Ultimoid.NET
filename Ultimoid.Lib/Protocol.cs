@@ -118,8 +118,8 @@ namespace Ultimoid.Lib {
 
 		}
 
-	    public bool TryReceive(out Datagram datagram) {
-	        
+	    public bool TryReceive(out UdpPair incoming) {
+	        return _receivedQueue.TryDequeue(out incoming);
 	    }
 	}
 
