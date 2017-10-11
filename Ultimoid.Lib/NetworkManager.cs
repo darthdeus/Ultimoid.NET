@@ -20,18 +20,26 @@ namespace Ultimoid.Lib {
 
         private UdpClient _udp;
 
+        private ulong _currentSeq;
+
+        private ulong _currentAck;
+        private uint _currentAckField;
+
         public NetworkManager(Scheduler scheduler) {
             _scheduler = scheduler;
 
             // TODO: listen port
             _udp = new UdpClient(ListenPort);
+
+            _currentSeq = 0;
         }
 
-        public CancellationTokenSource StartWorkerThread() {
+        public CancellationTokenSource StartWorkerThreads() {
             var cts = new CancellationTokenSource();
 
             var resetEvent = new ManualResetEvent(false);
 
+            // Sender thread
             new Thread(() => {
                 CancellationToken token = cts.Token;
 
@@ -57,6 +65,7 @@ namespace Ultimoid.Lib {
                 }
             }).Start();
 
+            // Receiver thread
             new Thread(() => {
                 CancellationToken token = cts.Token;
 
@@ -67,6 +76,8 @@ namespace Ultimoid.Lib {
 
                     Datagram datagram = Protocol.Deserialize(payload);
 
+                    UpdateAckFields(datagram);
+
                     _receivedQueue.Enqueue(new UdpPair(remote, datagram));
                 }
             }).Start();
@@ -74,19 +85,27 @@ namespace Ultimoid.Lib {
             return cts;
         }
 
-        public void SendUnreliable(IPEndPoint endpoint, Datagram datagram) {
-            DoSend(endpoint, datagram);
+        private void UpdateAckFields(Datagram receivedDatagram) {
+            // TODO: handle ack/seq re-calculation
+            if (receivedDatagram.Seq > _currentAck) {
+                
+            }
         }
 
-        public void SendLimitedRetry(Datagram datagram, TimeSpan timeout, TimeSpan retryInterval) {
-            DoSendDatagram(datagram);
+        public void SendUnreliable(IPEndPoint endpoint, byte[] data) {
+            DoSend(endpoint, data);
+        }
+
+        public void SendLimitedRetry(IPEndPoint endpoint, byte[] data, TimeSpan timeout, TimeSpan retryInterval) {
+            DoSend(endpoint, data);
+
+            // TODO: doplnit
         }
 
 
-        public void SendReliable(IPEndPoint endpoint, Datagram datagram)
-        {
+        public void SendReliable(IPEndPoint endpoint, byte[] data) {
             // TODO: vymyslet generovani seq
-            DoSend(endpoint, datagram);
+            DoSend(endpoint, data);
 
             // TODO: compute based on initial handshake?
             TimeSpan retryPeriod = TimeSpan.FromMilliseconds(200);
@@ -94,13 +113,23 @@ namespace Ultimoid.Lib {
 
             var tcs = _scheduler.RunPeriodicallyLimited(retryPeriod, retryCount, () => {
                 // TODO: compute seq
-                DoSend(endpoint, datagram);
+                DoSend(endpoint, data);
             });
         }
 
 
-        private void DoSend(IPEndPoint endpoint, Datagram datagram) {
+        private void DoSend(IPEndPoint endpoint, byte[] data) {
             // TODO: samotne odeslani datagramu
+
+            var datagram = new Datagram(
+                _currentSeq++,
+                _currentAck,
+                _currentAckField,
+                data);
+
+            // TODO: update acks
+
+            _sendQueue.Enqueue(new UdpPair(endpoint, datagram));
         }
 
         public void Update(TimeSpan deltaTime) {
