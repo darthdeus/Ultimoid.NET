@@ -52,7 +52,8 @@ namespace Ultimoid.Lib {
 
                 while (!token.IsCancellationRequested) {
                     // TODO: synchronne?
-                    if (_sendQueue.TryDequeue(out UdpPair sendRequest)) {
+                    UdpPair sendRequest;
+                    if (_sendQueue.TryDequeue(out sendRequest)) {
                         udpSenderClient.Connect(sendRequest.Endpoint);
 
                         byte[] data = Protocol.Serialize(sendRequest.Datagram);
