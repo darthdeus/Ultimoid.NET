@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -21,6 +22,24 @@ namespace Ultimoid.Lib {
 	        AckField = ackField;
 	        MessageId = messageId;
 	        Payload = payload;
+	    }
+
+	    public List<ulong> ParseAckedSeqs() {
+            // TODO: assert?
+	        int numberOfAckFields = 33;
+
+	        var result = new List<ulong>();
+
+            result.Add(Ack);
+	        for (int i = 0; i < numberOfAckFields - 1; i++) {
+	            bool bitAcked = (AckField & (1u << i)) != 0;
+
+	            if (bitAcked) {
+                    result.Add(Ack - (ulong)(i + 1));
+	            }
+	        }
+
+	        return result;
 	    }
 	}
 

@@ -16,7 +16,7 @@ namespace Ultimoid.Lib {
 
         private readonly Scheduler _scheduler;
 
-        private Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>> _pending
+        private readonly Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>> _pendingAck
             = new Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>>();
 
         private readonly ConcurrentQueue<UdpPair> _receivedQueue = new ConcurrentQueue<UdpPair>();
@@ -28,6 +28,9 @@ namespace Ultimoid.Lib {
         public ulong CurrentAck { get; private set; } = 0;
         public uint CurrentAckField { get; private set; } = 0;
         public uint CurrentMessageId { get; private set; } = 0;
+
+        private readonly Dictionary<ulong, uint> _localSeqToMessageId = new Dictionary<ulong, uint>();
+        private readonly TimeSpan TimeoutTimeSpan = TimeSpan.FromSeconds(5);
 
         public NetworkManager(Scheduler scheduler) {
             _scheduler = scheduler;
@@ -54,7 +57,7 @@ namespace Ultimoid.Lib {
             return cts;
         }
 
-        public void UpdateAckFields(Datagram receivedDatagram) {
+        public void UpdateSendAckFields(Datagram receivedDatagram) {
             // TODO: handle ack/seq re-calculation
             // TODO: neni threadsafe _currentAck + _currentAckField
             if (receivedDatagram.Seq > CurrentAck) {
@@ -108,17 +111,19 @@ namespace Ultimoid.Lib {
 
         public Task<uint> SendLimitedRetry(IPEndPoint endpoint, uint messageId, byte[] data, TimeSpan timeout,
             TimeSpan retryInterval) {
-            uint msgid = CurrentMessageId++;
-            DoSend(endpoint, msgid, data);
+            throw new NotImplementedException();
 
-            int retryCount = (int) Math.Ceiling(timeout.TotalMilliseconds / retryInterval.TotalMilliseconds);
+            //uint msgid = CurrentMessageId++;
+            //DoSend(endpoint, msgid, data);
 
-            var cts = _scheduler.RunPeriodicallyLimited(retryInterval, retryCount,
-                () => { DoSend(endpoint, messageId, data); });
+            //int retryCount = (int) Math.Ceiling(timeout.TotalMilliseconds / retryInterval.TotalMilliseconds);
 
-            var completionTcs = new TaskCompletionSource<uint>();
-            _pending[msgid] = Tuple.Create(cts, completionTcs);
-            return completionTcs.Task;
+            //var cts = _scheduler.RunPeriodicallyLimited(retryInterval, retryCount,
+            //    () => { DoSend(endpoint, messageId, data); });
+
+            //var completionTcs = new TaskCompletionSource<uint>();
+            //_pendingAck[msgid] = Tuple.Create(cts, completionTcs);
+            //return completionTcs.Task;
         }
 
         public Task<uint> SendReliable(IPEndPoint endpoint, byte[] data) {
@@ -129,10 +134,15 @@ namespace Ultimoid.Lib {
 
             // TODO: add a limit?
             // TODO: detect disconnect
-            var cts = _scheduler.RunPeriodically(retryPeriod, () => { DoSend(endpoint, msgid, data); });
+            var cts = _scheduler.RunPeriodically(retryPeriod, () => {
+                ulong seq = DoSend(endpoint, msgid, data);
+                _localSeqToMessageId[seq] = msgid;
+
+                _scheduler.RunIn(TimeoutTimeSpan, () => _localSeqToMessageId.Remove(seq));
+            });
 
             var completionTcs = new TaskCompletionSource<uint>();
-            _pending[msgid] = Tuple.Create(cts, completionTcs);
+            _pendingAck[msgid] = Tuple.Create(cts, completionTcs);
 
             return completionTcs.Task;
         }
@@ -154,14 +164,17 @@ namespace Ultimoid.Lib {
             while (true) {
                 if (_receivedQueue.TryDequeue(out UdpPair incomingPair)) {
                     var dgram = incomingPair.Datagram;
-                    UpdateAckFields(dgram);
+                    UpdateSendAckFields(dgram);
 
                     // TODO: update acks
+                    foreach (ulong ackedSeq in dgram.ParseAckedSeqs()) {
+                        uint messageId = _localSeqToMessageId[ackedSeq];
 
-                    if (_pending.TryGetValue(dgram.MessageId, out var value)) {
-                        value.Item1.Cancel();
-                        value.Item2.SetResult(dgram.MessageId);
-                        _pending.Remove(dgram.MessageId);
+                        if (_pendingAck.TryGetValue(messageId, out var value)) {
+                            value.Item1.Cancel();
+                            value.Item2.SetResult(messageId);
+                            _pendingAck.Remove(messageId);
+                        }
                     }
                 } else {
                     break;
