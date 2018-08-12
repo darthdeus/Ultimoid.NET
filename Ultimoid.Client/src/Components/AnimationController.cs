@@ -7,6 +7,7 @@ namespace HexMage.GUI.Components {
     /// </summary>
     public class AnimationController : Component {
         private readonly Animation _animation;
+
         public AnimationController(Animation animation) {
             _animation = animation;
         }
@@ -20,7 +21,7 @@ namespace HexMage.GUI.Components {
 
             if (_time > _animation.FrameTime) {
                 _animation.NextFrame();
-                _time = TimeSpan.Zero;                
+                _time = TimeSpan.Zero;
             }
         }
     }

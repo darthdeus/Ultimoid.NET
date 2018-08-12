@@ -6,10 +6,10 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Color = Microsoft.Xna.Framework.Color;
 
-namespace Ultimoid
-{
+namespace Ultimoid {
     public class MainGameplayScene : GameScene {
-        public MainGameplayScene(GameManager gameManager) : base(gameManager) {}
+        public MainGameplayScene(GameManager gameManager) : base(gameManager) {
+        }
 
         public override void Initialize() {
             var root = CreateRootEntity(Camera2D.SortBackground);
@@ -29,7 +29,7 @@ namespace Ultimoid
                 for (int j = 0; j < 10; j++) {
                     const float GridSize = 32;
                     var pos = Vector2.Zero;
-                    pos.Y += GridSize/2 * i;
+                    pos.Y += GridSize / 2 * i;
 
                     pos.X += GridSize * j;
 
@@ -41,7 +41,6 @@ namespace Ultimoid
                         batch.Draw(assetManager[tex], pos, Color.White);
                     } else {
                         batch.Draw(assetManager[tex], pos, Color.Red);
-
                     }
                 }
             }

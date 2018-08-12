@@ -17,16 +17,16 @@ namespace Ultimoid.Server {
 			while (true) {
 				IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
 
-				Console.WriteLine("Waiting");
+                Console.WriteLine("Waiting");
 				byte[] payload = udp.Receive(ref remote);
 
-				Console.WriteLine($"Received {payload.Length}, IP: {remote}, data: {string.Join(" ", payload.Select(x => x.ToString()))}");
+			    var rec = string.Join(" ", payload.Select(x => x.ToString()));
+                Console.WriteLine($"Received {payload.Length}, IP: {remote}, data: {rec}");
 			}
 		}
 
 		static void Main(string[] args) {
 			RunServerLoop(7999);
-		    
 
             var sched = new Scheduler();
 

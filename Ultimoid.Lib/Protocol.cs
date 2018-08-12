@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -6,7 +7,8 @@ using System.Threading.Tasks;
 
 namespace Ultimoid.Lib {
 	public struct Datagram {
-		public UInt64 Seq;
+        // TODO: change to uint16 & handle overflow
+        public UInt64 Seq;
 		public UInt64 Ack;
 		public UInt32 AckField;
 		public byte[] Payload;
@@ -89,6 +91,7 @@ namespace Ultimoid.Lib {
 			return Serialize(datagram.Payload, datagram.Seq, datagram.Ack, datagram.AckField);
 		}
 
+        // TODO: check max payload length
 		public static byte[] Serialize(byte[] payload, UInt64 seq, UInt64 ack, UInt32 ackField) {
 			var stream = new MemoryStream();
 

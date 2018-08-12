@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using HexMage.GUI;
 using HexMage.GUI.Core;
 using HexMage.GUI.Scenes;
@@ -89,7 +90,7 @@ namespace Ultimoid
             // TODO: introduce custom time scale
             _camera.Update(gameTime);
             _sceneManager.Update(gameTime);
-            
+
             _scheduler.Update(gameTime.ElapsedGameTime);
 
             base.Update(gameTime);
