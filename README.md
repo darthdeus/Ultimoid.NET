@@ -1,0 +1,1 @@
+[![Build status](https://ci.appveyor.com/api/projects/status/ffg3y008snv0rxyf?svg=true)](https://ci.appveyor.com/project/darthdeus/ultimoid-net)
