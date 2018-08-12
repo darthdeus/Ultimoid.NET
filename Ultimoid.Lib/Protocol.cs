@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -11,12 +12,14 @@ namespace Ultimoid.Lib {
         public UInt64 Seq;
 		public UInt64 Ack;
 		public UInt32 AckField;
+	    public UInt32 MessageId;
 		public byte[] Payload;
 
-	    public Datagram(ulong seq, ulong ack, uint ackField, byte[] payload) {
+	    public Datagram(ulong seq, ulong ack, uint ackField, uint messageId, byte[] payload) {
 	        Seq = seq;
 	        Ack = ack;
 	        AckField = ackField;
+	        MessageId = messageId;
 	        Payload = payload;
 	    }
 	}
@@ -39,7 +42,8 @@ namespace Ultimoid.Lib {
 		const int SeqLength = sizeof(UInt64);
 		const int AckLength = sizeof(UInt64);
 		const int AckFieldLength = sizeof(UInt32);
-		const int HeaderLength = MagicHeaderLength + SeqLength + AckLength + AckFieldLength;
+        const int MessageIdLength = sizeof(UInt32);
+		const int HeaderLength = MagicHeaderLength + SeqLength + AckLength + AckFieldLength + MessageIdLength;
 		const int MaxDatagramLength = 256;
 
 		public static Datagram Deserialize(byte[] networkData) {
@@ -64,35 +68,36 @@ namespace Ultimoid.Lib {
 			byte[] seqBytes = new byte[SeqLength];
 			Array.Copy(networkData, MagicHeaderLength, seqBytes, 0, seqBytes.Length);
 			seqBytes.ReverseIfLittleEndian();
-
 			result.Seq = BitConverter.ToUInt64(seqBytes, 0);
 
 			byte[] ackBytes = new byte[AckLength];
 			Array.Copy(networkData, MagicHeaderLength + SeqLength, ackBytes, 0, ackBytes.Length);
 			ackBytes.ReverseIfLittleEndian();
-
 			result.Ack = BitConverter.ToUInt64(ackBytes, 0);
 
 			byte[] ackFieldBytes = new byte[AckFieldLength];
 			Array.Copy(networkData, MagicHeaderLength + SeqLength + AckLength, ackFieldBytes, 0, ackFieldBytes.Length);
 			ackFieldBytes.ReverseIfLittleEndian();
-
 			result.AckField = BitConverter.ToUInt32(ackFieldBytes, 0);
 
-			byte[] payload = new byte[networkData.Length - HeaderLength];
-			Array.Copy(networkData, HeaderLength, payload, 0, payload.Length);
+		    byte[] messageIdBytes = new byte[MessageIdLength];
+		    Array.Copy(networkData, MagicHeaderLength + SeqLength + AckLength + AckFieldLength, messageIdBytes, 0, messageIdBytes.Length);
+		    messageIdBytes.ReverseIfLittleEndian();
+		    result.MessageId = BitConverter.ToUInt32(messageIdBytes, 0);
 
+            byte[] payload = new byte[networkData.Length - HeaderLength];
+			Array.Copy(networkData, HeaderLength, payload, 0, payload.Length);
 			result.Payload = payload;
 
 			return result;
 		}
 
 		public static byte[] Serialize(Datagram datagram) {
-			return Serialize(datagram.Payload, datagram.Seq, datagram.Ack, datagram.AckField);
+			return Serialize(datagram.Payload, datagram.Seq, datagram.Ack, datagram.AckField, datagram.MessageId);
 		}
 
         // TODO: check max payload length
-		public static byte[] Serialize(byte[] payload, UInt64 seq, UInt64 ack, UInt32 ackField) {
+		public static byte[] Serialize(byte[] payload, UInt64 seq, UInt64 ack, UInt32 ackField, UInt32 messageId) {
 			var stream = new MemoryStream();
 
 			// Magic header
@@ -111,6 +116,10 @@ namespace Ultimoid.Lib {
 			byte[] ackFieldBytes = BitConverter.GetBytes(ackField);
 			ackFieldBytes.ReverseIfLittleEndian();
 			stream.Write(ackFieldBytes, 0, ackFieldBytes.Length);
+
+		    byte[] messageIdBytes = BitConverter.GetBytes(messageId);
+            messageIdBytes.ReverseIfLittleEndian();
+            stream.Write(messageIdBytes, 0, messageIdBytes.Length);
 
 			stream.Write(payload, 0, payload.Length);
 

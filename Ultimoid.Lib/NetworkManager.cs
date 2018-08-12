@@ -15,56 +15,26 @@ namespace Ultimoid.Lib {
         const int ListenPort = 9987;
 
         private readonly Scheduler _scheduler;
-        private Dictionary<ulong, CancellationTokenSource> _pending = new Dictionary<ulong, CancellationTokenSource>();
+
+        private Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>> _pending
+            = new Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>>();
 
         private readonly ConcurrentQueue<UdpPair> _receivedQueue = new ConcurrentQueue<UdpPair>();
         private readonly ConcurrentQueue<UdpPair> _sendQueue = new ConcurrentQueue<UdpPair>();
 
-        private UdpClient _udp;
+        private readonly UdpClient _udp = new UdpClient(ListenPort);
 
-        public ulong CurrentSeq { get; private set; }
-        public ulong CurrentAck { get; private set; }
-        public uint CurrentAckField { get; private set; }
+        public ulong CurrentSeq { get; private set; } = 0;
+        public ulong CurrentAck { get; private set; } = 0;
+        public uint CurrentAckField { get; private set; } = 0;
+        public uint CurrentMessageId { get; private set; } = 0;
 
         public NetworkManager(Scheduler scheduler) {
             _scheduler = scheduler;
-
-            // TODO: listen port
-            _udp = new UdpClient(ListenPort);
-
-            CurrentSeq = 0;
         }
 
         public CancellationTokenSource StartWorkerThreads() {
             var cts = new CancellationTokenSource();
-
-            var resetEvent = new ManualResetEvent(false);
-
-            // Sender thread
-            new Thread(() => {
-                CancellationToken token = cts.Token;
-
-                var udpSenderClient = new UdpClient();
-
-                while (!token.IsCancellationRequested) {
-                    // TODO: synchronne?
-                    if (_sendQueue.TryDequeue(out UdpPair sendRequest)) {
-                        udpSenderClient.Connect(sendRequest.Endpoint);
-
-                        byte[] data = Protocol.Serialize(sendRequest.Datagram);
-                        // TODO: send async?
-                        udpSenderClient.Send(data, data.Length);
-
-                        //if (_sendQueue.IsEmpty) {
-                        //    resetEvent.Reset();
-                        //}
-                    } else {
-                        Thread.Sleep(TimeSpan.FromMilliseconds(3));
-                        //resetEvent.
-                        //resetEvent.WaitOne(TimeSpan.FromMilliseconds(10));
-                    }
-                }
-            }).Start();
 
             // Receiver thread
             new Thread(() => {
@@ -76,17 +46,11 @@ namespace Ultimoid.Lib {
 
                     Datagram datagram = Protocol.Deserialize(payload);
 
-                    ReceiveDatagram(remote, datagram);
+                    _receivedQueue.Enqueue(new UdpPair(remote, datagram));
                 }
             }).Start();
 
             return cts;
-        }
-
-        public void ReceiveDatagram(IPEndPoint remote, Datagram datagram) {
-            UpdateAckFields(datagram);
-
-            _receivedQueue.Enqueue(new UdpPair(remote, datagram));
         }
 
         public void UpdateAckFields(Datagram receivedDatagram) {
@@ -100,7 +64,7 @@ namespace Ultimoid.Lib {
                 // current = 10
                 //      v - potvrzuje 9. packet
                 // 000101
-                
+
                 // potom, kdyz current = 13
                 //      v - potvrzuje 12. packet
                 // 101000
@@ -119,7 +83,7 @@ namespace Ultimoid.Lib {
                 // TODO: Duplicate datagram? Raise error or log?
                 return;
             } else {
-                int diff = (int)(CurrentAck - receivedDatagram.Seq);
+                int diff = (int) (CurrentAck - receivedDatagram.Seq);
 
                 // curr = 5,  received = 4, diff = 1
                 // curr = 5,  received = 3, diff = 2
@@ -138,59 +102,70 @@ namespace Ultimoid.Lib {
         }
 
         public void SendUnreliable(IPEndPoint endpoint, byte[] data) {
-            DoSend(endpoint, data);
+            DoSend(endpoint, CurrentMessageId++, data);
         }
 
-        public void SendLimitedRetry(IPEndPoint endpoint, byte[] data, TimeSpan timeout, TimeSpan retryInterval) {
-            DoSend(endpoint, data);
+        public Task<uint> SendLimitedRetry(IPEndPoint endpoint, uint messageId, byte[] data, TimeSpan timeout,
+            TimeSpan retryInterval) {
+            uint msgid = CurrentMessageId++;
+            DoSend(endpoint, msgid, data);
 
-            int retryCount = (int)Math.Ceiling(timeout.TotalMilliseconds / retryInterval.TotalMilliseconds);
-            // TODO: doplnit
+            int retryCount = (int) Math.Ceiling(timeout.TotalMilliseconds / retryInterval.TotalMilliseconds);
+
+            var cts = _scheduler.RunPeriodicallyLimited(retryInterval, retryCount,
+                () => { DoSend(endpoint, messageId, data); });
+
+            var completionTcs = new TaskCompletionSource<uint>();
+            _pending[msgid] = Tuple.Create(cts, completionTcs);
+            return completionTcs.Task;
         }
 
-        public void SendReliable(IPEndPoint endpoint, byte[] data) {
-            ulong seq = DoSend(endpoint, data);
+        public Task<uint> SendReliable(IPEndPoint endpoint, byte[] data) {
+            uint msgid = CurrentMessageId++;
 
             // TODO: compute based on initial handshake?
             TimeSpan retryPeriod = TimeSpan.FromMilliseconds(200);
-            int retryCount = 3;
 
-            var tcs = _scheduler.RunPeriodicallyLimited(retryPeriod, retryCount, () => {
-                // TODO: compute seq
-                DoSend(endpoint, data);
-            });
+            // TODO: add a limit?
+            // TODO: detect disconnect
+            var cts = _scheduler.RunPeriodically(retryPeriod, () => { DoSend(endpoint, msgid, data); });
 
-            // TODO: race condition, pokud mi prijde odpoved driv, nez ulozim task
-            _pending[seq] = tcs;
+            var completionTcs = new TaskCompletionSource<uint>();
+            _pending[msgid] = Tuple.Create(cts, completionTcs);
+
+            return completionTcs.Task;
         }
 
-
-        private ulong DoSend(IPEndPoint endpoint, byte[] data) {
-            // TODO: samotne odeslani datagramu
+        private ulong DoSend(IPEndPoint endpoint, uint messageId, byte[] payload) {
             ulong seq = CurrentSeq++;
 
-            var datagram = new Datagram(
-                seq,
-                CurrentAck,
-                CurrentAckField,
-                data);
+            var datagram = new Datagram(seq, CurrentAck, CurrentAckField, messageId, payload);
 
-            // TODO: update acks
-
-            _sendQueue.Enqueue(new UdpPair(endpoint, datagram));
+            var udpSenderClient = new UdpClient(endpoint);
+            byte[] data = Protocol.Serialize(datagram);
+            // TODO: send async?
+            udpSenderClient.Send(data, data.Length);
 
             return seq;
         }
 
         public void Update(TimeSpan deltaTime) {
-            IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+            while (true) {
+                if (_receivedQueue.TryDequeue(out UdpPair incomingPair)) {
+                    var dgram = incomingPair.Datagram;
+                    UpdateAckFields(dgram);
 
+                    // TODO: update acks
 
-            byte[] payload = _udp.Receive(ref sender);
-        }
-
-        public bool TryReceive(out UdpPair incoming) {
-            return _receivedQueue.TryDequeue(out incoming);
+                    if (_pending.TryGetValue(dgram.MessageId, out var value)) {
+                        value.Item1.Cancel();
+                        value.Item2.SetResult(dgram.MessageId);
+                        _pending.Remove(dgram.MessageId);
+                    }
+                } else {
+                    break;
+                }
+            }
         }
     }
 }
