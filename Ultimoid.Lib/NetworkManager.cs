@@ -22,7 +22,7 @@ namespace Ultimoid.Lib {
         private readonly ConcurrentQueue<UdpPair> _receivedQueue = new ConcurrentQueue<UdpPair>();
         private readonly ConcurrentQueue<UdpPair> _sendQueue = new ConcurrentQueue<UdpPair>();
 
-        private readonly UdpClient _udp = new UdpClient(ListenPort);
+        private readonly UdpClient _udp;
 
         public ulong CurrentSeq { get; private set; } = 0;
         public ulong CurrentAck { get; private set; } = 0;
@@ -31,6 +31,7 @@ namespace Ultimoid.Lib {
 
         public NetworkManager(Scheduler scheduler) {
             _scheduler = scheduler;
+            _udp = new UdpClient(ListenPort);
         }
 
         public CancellationTokenSource StartWorkerThreads() {
