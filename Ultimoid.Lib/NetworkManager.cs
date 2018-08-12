@@ -152,10 +152,10 @@ namespace Ultimoid.Lib {
 
             var datagram = new Datagram(seq, CurrentAck, CurrentAckField, messageId, payload);
 
-            var udpSenderClient = new UdpClient(endpoint);
+            var udpSenderClient = new UdpClient();
             byte[] data = Protocol.Serialize(datagram);
             // TODO: send async?
-            udpSenderClient.Send(data, data.Length);
+            udpSenderClient.Send(data, data.Length, endpoint);
 
             return seq;
         }
