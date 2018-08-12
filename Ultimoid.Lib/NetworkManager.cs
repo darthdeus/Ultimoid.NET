@@ -22,13 +22,9 @@ namespace Ultimoid.Lib {
 
         private UdpClient _udp;
 
-        private ulong _currentSeq;
-        public ulong CurrentSeq => _currentSeq;
-
-        private ulong _currentAck;
-        public ulong CurrentAck => _currentAck;
-        private uint _currentAckField;
-        public uint CurrentAckField => _currentAckField;
+        public ulong CurrentSeq { get; private set; }
+        public ulong CurrentAck { get; private set; }
+        public uint CurrentAckField { get; private set; }
 
         public NetworkManager(Scheduler scheduler) {
             _scheduler = scheduler;
@@ -36,7 +32,7 @@ namespace Ultimoid.Lib {
             // TODO: listen port
             _udp = new UdpClient(ListenPort);
 
-            _currentSeq = 0;
+            CurrentSeq = 0;
         }
 
         public CancellationTokenSource StartWorkerThreads() {
@@ -52,8 +48,7 @@ namespace Ultimoid.Lib {
 
                 while (!token.IsCancellationRequested) {
                     // TODO: synchronne?
-                    UdpPair sendRequest;
-                    if (_sendQueue.TryDequeue(out sendRequest)) {
+                    if (_sendQueue.TryDequeue(out UdpPair sendRequest)) {
                         udpSenderClient.Connect(sendRequest.Endpoint);
 
                         byte[] data = Protocol.Serialize(sendRequest.Datagram);
@@ -97,8 +92,8 @@ namespace Ultimoid.Lib {
         public void UpdateAckFields(Datagram receivedDatagram) {
             // TODO: handle ack/seq re-calculation
             // TODO: neni threadsafe _currentAck + _currentAckField
-            if (receivedDatagram.Seq > _currentAck) {
-                int diff = (int) (receivedDatagram.Seq - _currentAck);
+            if (receivedDatagram.Seq > CurrentAck) {
+                int diff = (int) (receivedDatagram.Seq - CurrentAck);
 
                 // current: 10, received: 13, diff = 3
 
@@ -110,21 +105,21 @@ namespace Ultimoid.Lib {
                 //      v - potvrzuje 12. packet
                 // 101000
 
-                _currentAckField <<= 1;
-                if (_currentAck != 0) {
-                    _currentAckField |= 1u;
+                CurrentAckField <<= 1;
+                if (CurrentAck != 0) {
+                    CurrentAckField |= 1u;
                 }
 
                 for (int i = 0; i < diff - 1; i++) {
-                    _currentAckField <<= 1;
+                    CurrentAckField <<= 1;
                 }
 
-                _currentAck = receivedDatagram.Seq;
-            } else if (receivedDatagram.Seq == _currentAck) {
+                CurrentAck = receivedDatagram.Seq;
+            } else if (receivedDatagram.Seq == CurrentAck) {
                 // TODO: Duplicate datagram? Raise error or log?
                 return;
             } else {
-                int diff = (int)(_currentAck - receivedDatagram.Seq);
+                int diff = (int)(CurrentAck - receivedDatagram.Seq);
 
                 // curr = 5,  received = 4, diff = 1
                 // curr = 5,  received = 3, diff = 2
@@ -135,7 +130,7 @@ namespace Ultimoid.Lib {
                 Debug.Assert(diff >= 1);
 
                 if (diff <= 32) {
-                    _currentAckField |= 1u << (diff - 1);
+                    CurrentAckField |= 1u << (diff - 1);
                 } else {
                     // TODO: log old datagram
                 }
@@ -172,12 +167,12 @@ namespace Ultimoid.Lib {
 
         private ulong DoSend(IPEndPoint endpoint, byte[] data) {
             // TODO: samotne odeslani datagramu
-            ulong seq = _currentSeq++;
+            ulong seq = CurrentSeq++;
 
             var datagram = new Datagram(
                 seq,
-                _currentAck,
-                _currentAckField,
+                CurrentAck,
+                CurrentAckField,
                 data);
 
             // TODO: update acks
