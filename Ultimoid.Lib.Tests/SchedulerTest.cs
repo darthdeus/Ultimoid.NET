@@ -5,29 +5,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Ultimoid.Lib.Tests {
     [TestClass]
-    public class UnitTest1 {
+    public class SchedulerTest {
         [TestMethod]
-        public void TestMethod1() {
-            var data = new Datagram {
-                Ack = 23,
-                Seq = 44,
-                AckField = 423098,
-                MessageId = 3,
-                Payload = new byte[] {0xDE, 0xAD, 0xBE, 0xEF}
-            };
-
-            byte[] serialized = Protocol.Serialize(data);
-            var deserialized = Protocol.Deserialize(serialized);
-
-            Assert.AreEqual(data.Ack, deserialized.Ack);
-            Assert.AreEqual(data.Seq, deserialized.Seq);
-            Assert.AreEqual(data.AckField, deserialized.AckField);
-            Assert.AreEqual(data.MessageId, deserialized.MessageId);
-            CollectionAssert.AreEqual(data.Payload, deserialized.Payload);
-        }
-
-        [TestMethod]
-        public void SchedulerTest() {
+        public void BasicSchedulerTest() {
             var sched = new Scheduler();
 
             bool ran = false;
@@ -140,74 +120,6 @@ namespace Ultimoid.Lib.Tests {
 
             sched.Update(TimeSpan.FromMilliseconds(10));
             Assert.AreEqual(2, count);
-        }
-
-        [TestMethod]
-        public void TestUpdateAckFields() {
-            var sched = new Scheduler();
-            var network = new NetworkManager(sched);
-
-            network.UpdateSendAckFields(new Datagram(1, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 1uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0000_0000_0000_0000u);
-
-            network.UpdateSendAckFields(new Datagram(2, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 2uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0000_0000_0000_0001u);
-
-            network.UpdateSendAckFields(new Datagram(3, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 3uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0000_0000_0000_0011u);
-
-            network.UpdateSendAckFields(new Datagram(5, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 5uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0000_0000_0000_1110u);
-
-            network.UpdateSendAckFields(new Datagram(15, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 15uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0011_1010_0000_0000u);
-
-            network.UpdateSendAckFields(new Datagram(31, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 31uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0011_1010_0000_0000_1000_0000_0000_0000u);
-
-            network.UpdateSendAckFields(new Datagram(34, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 34uL);
-            Assert.AreEqual(network.CurrentAckField, 0b1101_0000_0000_0100_0000_0000_0000_0100u);
-
-            network.UpdateSendAckFields(new Datagram(34, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 0uL);
-            Assert.AreEqual(network.CurrentAck, 34uL);
-            Assert.AreEqual(network.CurrentAckField, 0b1101_0000_0000_0100_0000_0000_0000_0100u);
-
-            network.SendUnreliable(new IPEndPoint(IPAddress.Broadcast, 0), new byte[] {});
-
-            network.UpdateSendAckFields(new Datagram(128, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 1uL);
-            Assert.AreEqual(network.CurrentAck, 128uL);
-            Assert.AreEqual(network.CurrentAckField, 0u);
-
-            network.UpdateSendAckFields(new Datagram(131, 0, 0, 0, new byte[] { 0x00 }));
-
-            Assert.AreEqual(network.CurrentSeq, 1uL);
-            Assert.AreEqual(network.CurrentAck, 131uL);
-            Assert.AreEqual(network.CurrentAckField, 0b0100u);
         }
     }
 }

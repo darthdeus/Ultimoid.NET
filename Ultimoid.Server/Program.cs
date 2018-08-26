@@ -30,7 +30,8 @@ namespace Ultimoid.Server {
 
             var sched = new Scheduler();
 
-            var network = new NetworkManager(sched);
+            // TODO: shouldn't use FakeUdpclient
+            var network = new NetworkManager(sched, new FakeUdpClient());
 
 
 		    //var client = new UdpClient(new IPEndPoint(IPAddress.Any, 8989));

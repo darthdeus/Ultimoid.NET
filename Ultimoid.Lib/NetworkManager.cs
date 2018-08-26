@@ -19,22 +19,22 @@ namespace Ultimoid.Lib {
         private readonly Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>> _pendingAck
             = new Dictionary<ulong, Tuple<CancellationTokenSource, TaskCompletionSource<uint>>>();
 
-        private readonly ConcurrentQueue<UdpPair> _receivedQueue = new ConcurrentQueue<UdpPair>();
-        private readonly ConcurrentQueue<UdpPair> _sendQueue = new ConcurrentQueue<UdpPair>();
+        public readonly ConcurrentQueue<UdpPair> ReceivedQueue = new ConcurrentQueue<UdpPair>();
+        public readonly ConcurrentQueue<UdpPair> SendQueue = new ConcurrentQueue<UdpPair>();
 
-        private readonly UdpClient _udp;
-
-        public ulong CurrentSeq { get; private set; } = 0;
+        // TODO !!!!!!!!!!!! overflow must go back to 1
+        public ulong CurrentSeq { get; private set; } = 1;
         public ulong CurrentAck { get; private set; } = 0;
         public uint CurrentAckField { get; private set; } = 0;
-        public uint CurrentMessageId { get; private set; } = 0;
+        public uint CurrentMessageId { get; private set; } = 1;
 
         private readonly Dictionary<ulong, uint> _localSeqToMessageId = new Dictionary<ulong, uint>();
         private readonly TimeSpan TimeoutTimeSpan = TimeSpan.FromSeconds(5);
+        private readonly IUdpNetworkClient _udpClient;
 
-        public NetworkManager(Scheduler scheduler) {
+        public NetworkManager(Scheduler scheduler, IUdpNetworkClient udpClient) {
             _scheduler = scheduler;
-            _udp = new UdpClient(ListenPort);
+            _udpClient = udpClient;
         }
 
         public CancellationTokenSource StartWorkerThreads() {
@@ -45,16 +45,20 @@ namespace Ultimoid.Lib {
                 CancellationToken token = cts.Token;
 
                 while (!token.IsCancellationRequested) {
-                    IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
-                    byte[] payload = _udp.Receive(ref remote);
-
-                    Datagram datagram = Protocol.Deserialize(payload);
-
-                    _receivedQueue.Enqueue(new UdpPair(remote, datagram));
+                    ManualReceive();
                 }
             }).Start();
 
             return cts;
+        }
+
+        public void ManualReceive() {
+            IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
+            byte[] payload = _udpClient.Receive(ref remote);
+
+            Datagram datagram = Protocol.Deserialize(payload);
+
+            ReceivedQueue.Enqueue(new UdpPair(remote, datagram));
         }
 
         public void UpdateSendAckFields(Datagram receivedDatagram) {
@@ -152,28 +156,31 @@ namespace Ultimoid.Lib {
 
             var datagram = new Datagram(seq, CurrentAck, CurrentAckField, messageId, payload);
 
-            var udpSenderClient = new UdpClient();
             byte[] data = Protocol.Serialize(datagram);
             // TODO: send async?
-            udpSenderClient.Send(data, data.Length, endpoint);
+            _udpClient.Send(data, data.Length, endpoint);
 
             return seq;
         }
 
         public void Update(TimeSpan deltaTime) {
             while (true) {
-                if (_receivedQueue.TryDequeue(out UdpPair incomingPair)) {
+                if (ReceivedQueue.TryDequeue(out UdpPair incomingPair)) {
                     var dgram = incomingPair.Datagram;
                     UpdateSendAckFields(dgram);
 
                     // TODO: update acks
                     foreach (ulong ackedSeq in dgram.ParseAckedSeqs()) {
-                        uint messageId = _localSeqToMessageId[ackedSeq];
-
-                        if (_pendingAck.TryGetValue(messageId, out var value)) {
-                            value.Item1.Cancel();
-                            value.Item2.SetResult(messageId);
-                            _pendingAck.Remove(messageId);
+                        if (_localSeqToMessageId.TryGetValue(ackedSeq, out uint messageId)) {
+                            if (_pendingAck.TryGetValue(messageId, out var value)) {
+                                value.Item1.Cancel();
+                                value.Item2.SetResult(messageId);
+                                _pendingAck.Remove(messageId);
+                            } else {
+                                // TODO: ...
+                            }
+                        } else {
+                            // TODO: ...
                         }
                     }
                 } else {

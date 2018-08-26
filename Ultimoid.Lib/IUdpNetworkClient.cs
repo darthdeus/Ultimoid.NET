@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 
@@ -27,7 +28,8 @@ namespace Ultimoid.Lib {
     }
 
     public class FakeUdpClient : IUdpNetworkClient {
-        public List<byte[]> Responses = new List<byte[]>();
+        public readonly List<byte[]> Responses = new List<byte[]>();
+        public readonly List<Tuple<byte[], IPEndPoint>> Sent = new List<Tuple<byte[], IPEndPoint>>();
 
         public void PushResponse(Datagram datagram) {
             Responses.Add(Protocol.Serialize(datagram));
@@ -43,7 +45,11 @@ namespace Ultimoid.Lib {
         }
 
         public int Send(byte[] data, int length, IPEndPoint remoteEndpoint) {
-            throw new System.NotImplementedException();
+            if (data.Length != length) {
+                throw new ArgumentException();
+            }
+            Sent.Add(Tuple.Create(data, remoteEndpoint));
+            return length;
         }
     }
 }
